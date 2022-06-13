@@ -10,10 +10,10 @@ public:
 	bool padLeft, padRight, padUp, padDown;
 	bool buttonL, buttonR, buttonZ, buttonStart;
 
-	double mainStickHorizontal, mainStickVertical;
-	double cStickHorizontal, cStickVertical;
+	float mainStickHorizontal, mainStickVertical;
+	float cStickHorizontal, cStickVertical;
 
-	double triggerL, triggerR;
+	int triggerL, triggerR;
 };
 inline ostream& operator<<(ostream & string, ControllerStatus const &v) {
 	string << "{ connected: " << v.connected << ","

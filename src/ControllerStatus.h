@@ -14,7 +14,6 @@ public:
 	double cStickHorizontal, cStickVertical;
 
 	double triggerL, triggerR;
-	ControllerStatus();
 };
 inline ostream& operator<<(ostream & string, ControllerStatus const &v) {
 	string << "{ connected: " << v.connected << ","

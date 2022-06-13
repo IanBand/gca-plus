@@ -12,7 +12,7 @@ DEV_FLAGS = -w $(DEBUG)
  
 STD = -std=c++17
 
-OUT = ./build/gca_demo
+OUT = ./build/demo.out
 
 all : 
 	$(CC) $(DEV_FLAGS) $(SOURCE) $(GCA_LINKER_FLAGS) $(DEMO) $(STD) -o $(OUT)

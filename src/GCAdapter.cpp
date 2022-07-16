@@ -200,10 +200,7 @@ namespace gca {
 		unsigned int bit = (unsigned)(number & (1 << n - 1));
 		return bit >> n - 1;
 	}
-	/*
-	    buffer must have length 4
-	*/
-	void Process(ControllerStatus* buffer) {
+	void Process(ControllerStatus buffer[4]) {
 		adapter_thread_running.Set(true);
 		adapter_thread = thread(Read);
 		if (adapter_thread_running.TestAndClear()) {

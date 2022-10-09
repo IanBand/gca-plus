@@ -1,4 +1,4 @@
-#include "../src/GCAdapter.h"
+#include "GCAdapter.h"
 
 int main( int argc, char *argv[] ){
 
@@ -14,7 +14,10 @@ int main( int argc, char *argv[] ){
 	    gca::Process(adapter_buffer);
 	    std::cout << adapter_buffer[0] << std::endl;
 	}
-	gca::Stop();
+    
+    std::cout << "Test complete!" << std::endl;
+	
+    gca::Stop();
 	
     return 0;
 }

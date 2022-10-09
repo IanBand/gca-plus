@@ -6,7 +6,7 @@
 #include <iomanip>
 #include <algorithm>
 #include "GCAdapter.h"
-#include "../include/Flag.h"
+#include "Flag.h"
 
 using namespace std;
 

@@ -1,0 +1,1 @@
+cmake . -DBUILD_EXAMPLE=true # this value is saved in the enviornment

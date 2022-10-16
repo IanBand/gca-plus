@@ -5,7 +5,9 @@
 #include <bitset>
 #include <iomanip>
 #include <algorithm>
+
 #include "GCAdapter.h"
+
 #include "Flag.h"
 
 using namespace std;
@@ -200,7 +202,7 @@ namespace gca {
 		unsigned int bit = (unsigned)(number & (1 << n - 1));
 		return bit >> n - 1;
 	}
-	void Process(ControllerStatus buffer[4]) {
+	void Process(ControllerStatus* buffer) {
 		adapter_thread_running.Set(true);
 		adapter_thread = thread(Read);
 		if (adapter_thread_running.TestAndClear()) {
@@ -229,45 +231,45 @@ namespace gca {
 		ControllerStatus status;
 		int m_port = port - 1; //port is 1 indexed, metadata is 0 indexed
 
-		//reading metadata value causes "terminate called without an active exception"
+		// reading metadata value causes "terminate called without an active exception"
 		
 		if(!metadata[m_port].connected_on_prev_poll){
 			
-			//keep track of init values at plugin
+			// keep track of init values at plugin
 			metadata[m_port].init_primary_x   = results[4 * port] - 128;
 			metadata[m_port].init_primary_y   = results[5 * port] - 128;
 			metadata[m_port].init_secondary_x = results[6 * port] - 128;
 			metadata[m_port].init_secondary_y = results[7 * port] - 128;
 			metadata[m_port].init_trigger_l   = results[8 * port];
 			metadata[m_port].init_trigger_r   = results[9 * port];
-			
+
 		}
 
-		status.connected = GetNthBit(results[1 * port], 5);
+		status.connected   = GetNthBit(results[1 * port], 5);
 
-		status.buttonA = GetNthBit(results[2 * port], 1);
-		status.buttonB = GetNthBit(results[2 * port], 2);
-		status.buttonX = GetNthBit(results[2 * port], 3);
-		status.buttonY = GetNthBit(results[2 * port], 4);
+		status.buttonA     = GetNthBit(results[2 * port], 1);
+		status.buttonB     = GetNthBit(results[2 * port], 2);
+		status.buttonX     = GetNthBit(results[2 * port], 3);
+		status.buttonY     = GetNthBit(results[2 * port], 4);
 
-		status.padLeft = GetNthBit(results[2 * port], 5);
-		status.padRight = GetNthBit(results[2 * port], 6);
-		status.padDown = GetNthBit(results[2 * port], 7);
-		status.padUp = GetNthBit(results[2 * port], 8);
+		status.padLeft     = GetNthBit(results[2 * port], 5);
+		status.padRight    = GetNthBit(results[2 * port], 6);
+		status.padDown     = GetNthBit(results[2 * port], 7);
+		status.padUp       = GetNthBit(results[2 * port], 8);
 
-		status.buttonL = GetNthBit(results[3 * port], 4);
-		status.buttonR = GetNthBit(results[3 * port], 3);
-		status.buttonZ = GetNthBit(results[3 * port], 2);
+		status.buttonL     = GetNthBit(results[3 * port], 4);
+		status.buttonR     = GetNthBit(results[3 * port], 3);
+		status.buttonZ     = GetNthBit(results[3 * port], 2);
 		status.buttonStart = GetNthBit(results[3 * port], 1);
 
-		status.mainStickHorizontal = 0.0125f * std::clamp(results[4 * port] - 128 - metadata[m_port].init_primary_x, -80, 80);
-		status.mainStickVertical   = 0.0125f * std::clamp(results[5 * port] - 128 - metadata[m_port].init_primary_y, -80, 80);
+		status.mainStickHorizontal = std::clamp(results[4 * port] - 128 - metadata[m_port].init_primary_x,   -128, 127); // note: ssbm clamps from from -80 to 80. this is essentially the practical limit of the digital inputs you will get out of the GC 
+		status.mainStickVertical   = std::clamp(results[5 * port] - 128 - metadata[m_port].init_primary_y,   -128, 127);
 
-		status.cStickHorizontal    = 0.0125f * std::clamp(results[6 * port] - 128 - metadata[m_port].init_secondary_x, -80, 80);
-		status.cStickVertical      = 0.0125f * std::clamp(results[7 * port] - 128 - metadata[m_port].init_secondary_y, -80, 80);
+		status.cStickHorizontal    = std::clamp(results[6 * port] - 128 - metadata[m_port].init_secondary_x, -128, 127);
+		status.cStickVertical      = std::clamp(results[7 * port] - 128 - metadata[m_port].init_secondary_y, -128, 127);
 
-		status.triggerL = std::clamp(results[8 * port] - metadata[m_port].init_trigger_l, 0, 255);
-		status.triggerR = std::clamp(results[9 * port] - metadata[m_port].init_trigger_r, 0, 255);
+		status.triggerL            = std::clamp(results[8 * port]       - metadata[m_port].init_trigger_l,    0, 255);
+		status.triggerR            = std::clamp(results[9 * port]       - metadata[m_port].init_trigger_r,    0, 255);
 
 		// however writing does not cause this issue
 		metadata[m_port].connected_on_prev_poll = status.connected;

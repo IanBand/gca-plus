@@ -4,7 +4,7 @@
 #include <atomic>
 #include <bitset>
 #include <iomanip>
-#include <algorithm>
+//#include <algorithm>
 
 #include "GCAdapter.h"
 
@@ -17,6 +17,19 @@ libusb_context *context = nullptr;
 
 uint8_t controller_payload[37];
 uint8_t controller_payload_swap[37];
+
+
+struct ControllerMetadata {
+	bool connected_on_prev_poll = false;
+	int init_primary_x = 0;
+	int init_primary_y = 0;
+	int init_secondary_x = 0;
+	int init_secondary_y = 0;
+	int init_trigger_l = 0;
+	int init_trigger_r = 0;
+};
+
+ControllerMetadata metadata[4];
 
 atomic<int> controller_payload_size = { 0 };
 
@@ -181,35 +194,56 @@ namespace gca {
 	ControllerStatus GetGamepadStatus(uint8_t * controller_payload, int i) {
 		ControllerStatus status;
 
+		if(!metadata[i].connected_on_prev_poll)
+		{
+
+			//keep track of init values at plugin
+			metadata[i].init_primary_x   = controller_payload[4 + i * 9];// - 128;
+			metadata[i].init_primary_y   = controller_payload[5 + i * 9];// - 128;
+			metadata[i].init_secondary_x = controller_payload[6 + i * 9];// - 128;
+			metadata[i].init_secondary_y = controller_payload[7 + i * 9];// - 128;
+			metadata[i].init_trigger_l   = controller_payload[8 + i * 9];
+			metadata[i].init_trigger_r   = controller_payload[9 + i * 9];
+
+		}
+
 		status.connected   = GetNthBit(controller_payload[1 + i * 9], 5); // occurs in payload bytes: 1, 10, 19, 28
 
-		status.buttonA     = GetNthBit(controller_payload[2 + i * 9], 1);
-		status.buttonB     = GetNthBit(controller_payload[2 + i * 9], 2);
-		status.buttonX     = GetNthBit(controller_payload[2 + i * 9], 3);
-		status.buttonY     = GetNthBit(controller_payload[2 + i * 9], 4);
+		status.button_a     = GetNthBit(controller_payload[2 + i * 9], 1);
+		status.button_b     = GetNthBit(controller_payload[2 + i * 9], 2);
+		status.button_x     = GetNthBit(controller_payload[2 + i * 9], 3);
+		status.button_y     = GetNthBit(controller_payload[2 + i * 9], 4);
 
-		status.padLeft     = GetNthBit(controller_payload[2 + i * 9], 5);
-		status.padRight    = GetNthBit(controller_payload[2 + i * 9], 6);
+		status.pad_left     = GetNthBit(controller_payload[2 + i * 9], 5);
+		status.pad_right    = GetNthBit(controller_payload[2 + i * 9], 6);
 		status.padDown     = GetNthBit(controller_payload[2 + i * 9], 7);
 		status.padUp       = GetNthBit(controller_payload[2 + i * 9], 8);
 
-		status.buttonStart = GetNthBit(controller_payload[3 + i * 9], 1);
-		status.buttonZ     = GetNthBit(controller_payload[3 + i * 9], 2);
-		status.buttonR     = GetNthBit(controller_payload[3 + i * 9], 3);
-		status.buttonL     = GetNthBit(controller_payload[3 + i * 9], 4);
+		status.button_start = GetNthBit(controller_payload[3 + i * 9], 1);
+		status.button_z     = GetNthBit(controller_payload[3 + i * 9], 2);
+		status.button_r     = GetNthBit(controller_payload[3 + i * 9], 3);
+		status.button_l     = GetNthBit(controller_payload[3 + i * 9], 4);
 
 		// TODO: memcopy these? memcopy all?
 		// TODO: add back bias correction & controller_analog_bias struct?
 
-		status.mainStickHorizontal = controller_payload[4 + i * 9];
-		status.mainStickVertical   = controller_payload[5 + i * 9];
+		status.primary_x   = controller_payload[4 + i * 9] - metadata[i].init_primary_x;
+		status.primary_y   = controller_payload[5 + i * 9] - metadata[i].init_primary_y;
 
-		status.cStickHorizontal    = controller_payload[6 + i * 9];
-		status.cStickVertical      = controller_payload[7 + i * 9];
+		status.secondary_x = controller_payload[6 + i * 9] - metadata[i].init_secondary_x;
+		status.secondary_y = controller_payload[7 + i * 9] - metadata[i].init_secondary_y;
 
-		status.triggerL            = controller_payload[8 + i * 9];
-		status.triggerR            = controller_payload[9 + i * 9];
+		status.trigger_l   = controller_payload[8 + i * 9] - metadata[i].init_trigger_l;
+		status.trigger_r   = controller_payload[9 + i * 9] - metadata[i].init_trigger_r;
+
+
+		metadata[i].connected_on_prev_poll = status.connected;
 
 		return status;
+	}
+
+	void ResetCalibration(int port){
+		//controller calibration will reset on next poll
+		metadata[port].connected_on_prev_poll = false;
 	}
 }

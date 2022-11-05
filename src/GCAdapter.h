@@ -32,7 +32,7 @@ namespace gca {
 	bool IsAccessible(libusb_device *dev);
 	unsigned int GetNthBit(uint8_t number, int n);
 	ControllerStatus GetGamepadStatus(uint8_t * results, int port);
-
 	const uint16_t GAMECUBE_VID = 0x057E;
 	const uint16_t GAMECUBE_PID = 0x0337;
+	void ResetCalibration(int port);
 }

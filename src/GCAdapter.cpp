@@ -18,10 +18,6 @@ libusb_context *context = nullptr;
 uint8_t controller_payload[37];
 uint8_t controller_payload_swap[37];
 
-//first metadata struct is unused, this is just to make the array 1 indexed
-//change to std::array, & use bounds checking
-gca::ControllerMetadata metadata[4];
-
 atomic<int> controller_payload_size = { 0 };
 
 thread adapter_thread;
@@ -124,14 +120,6 @@ namespace gca {
 		uint8_t payload = 0x13;
 		return libusb_interrupt_transfer(device_handle, endpoint_out, &payload, sizeof(payload), &tmp, 16);
 	}
-	string Request() {
-		adapter_thread_running.Set(true);
-		adapter_thread = thread(Read);
-		if (adapter_thread_running.TestAndClear()) {
-			adapter_thread.join();
-		}
-		return PollBytes(controller_payload);
-	}
 	int Stop() {
 		int code = 0;
 		if (adapter_thread_running.TestAndClear()) {
@@ -154,49 +142,6 @@ namespace gca {
 
 		this_thread::yield();
 	}
-	string PollBytes(uint8_t *results)
-	{
-		stringstream return_value;
-		//This is pretty messy. Must clean up.
-		unsigned int header = results[0];
-		unsigned int unknown = results[1];
-		bitset<8> x(unknown);
-		unsigned int buttonA = GetNthBit(results[2], 1);
-		unsigned int buttonB = GetNthBit(results[2], 2);
-		unsigned int buttonX = GetNthBit(results[2], 3);
-		unsigned int buttonY = GetNthBit(results[2], 4);
-		unsigned int padLeft = GetNthBit(results[2], 5);
-		unsigned int padRight = GetNthBit(results[2], 6);
-		unsigned int padDown = GetNthBit(results[2], 7);
-		unsigned int padUp = GetNthBit(results[2], 8);
-
-		unsigned int buttonL = GetNthBit(results[3], 4);
-		unsigned int buttonR = GetNthBit(results[3], 3);
-		unsigned int buttonZ = GetNthBit(results[3], 2);
-		unsigned int buttonStart = GetNthBit(results[3], 1);
-		//TODO: Are axes ints, floats or doubles?
-		float mainStickX = results[4] / 128.0f - 1;
-		float mainStickY = results[5] / 128.0f - 1;
-
-		float cStickX = results[6] / 128.0f - 1;
-		float cStickY = results[7] / 128.0f - 1;
-
-		float triggerL = results[8] / 255.0f;
-		float triggerR = results[9] / 255.0f;
-
-		return_value.precision(5);
-
-		return_value << "GCA Header = 0x" << hex << header << dec << endl;
-		return_value << "Unknown value = " << x << endl;
-		return_value << "A = " << buttonA << ", B = " << buttonB << ", X = " << buttonX << ", Y =" << buttonY << endl;
-		return_value << "UP = " << padUp << ", DOWN = " << padDown << ", LEFT = " << padLeft << ", RIGHT =" << padRight << endl;
-		return_value << "L = " << buttonL << ", R = " << buttonR << ", Z = " << buttonZ << ", START =" << buttonStart << endl << endl;
-		return_value << "Stick Horiz = " << mainStickX << ", Stick Verti =" << mainStickY << endl;
-		return_value << "C-Stick Horiz = " << cStickX << ", C-Stick Verti =" << cStickY << endl;
-		return_value << "L Axis = " << triggerL << ", R Axis =" << triggerR << endl;
-
-		return return_value.str();
-	}
 
 	unsigned int GetNthBit(uint8_t number, int n) {
 		unsigned int bit = (unsigned)(number & (1 << n - 1));
@@ -209,7 +154,7 @@ namespace gca {
 			adapter_thread.join();
 		}
 		for (int i = 0; i < 4; i++) {
-			buffer[i] = GetGamepadStatus(controller_payload, i + 1);
+			buffer[i] = GetGamepadStatus(controller_payload, i);
 		}
 	}
 	string RawData() {
@@ -219,66 +164,52 @@ namespace gca {
 			adapter_thread.join();
 		}
 		stringstream return_value;
-		return_value << "[";
-		for (int i = 0; i < 10; i++) {
+		for (int i = 0; i < 37; i++) {
+
+			return_value << i << "_______";
+			if(i < 10){ // i is 1 digit, insert extra
+				return_value << "_";
+			}
+		}
+		return_value << "\n";
+		for (int i = 0; i < 37; i++) {
 			return_value << bitset<8>(controller_payload[i]) << ",";
 		}
-		return_value << bitset<8>(controller_payload[10]) << "]";
 		return return_value.str();
 	}
 
-	ControllerStatus GetGamepadStatus(uint8_t * results, int port) {
+	ControllerStatus GetGamepadStatus(uint8_t * controller_payload, int i) {
 		ControllerStatus status;
-		int m_port = port - 1; //port is 1 indexed, metadata is 0 indexed
 
-		// reading metadata value causes "terminate called without an active exception"
-		
-		if(!metadata[m_port].connected_on_prev_poll){
-			
-			// keep track of init values at plugin
-			metadata[m_port].init_primary_x   = results[4 * port] - 128;
-			metadata[m_port].init_primary_y   = results[5 * port] - 128;
-			metadata[m_port].init_secondary_x = results[6 * port] - 128;
-			metadata[m_port].init_secondary_y = results[7 * port] - 128;
-			metadata[m_port].init_trigger_l   = results[8 * port];
-			metadata[m_port].init_trigger_r   = results[9 * port];
+		status.connected   = GetNthBit(controller_payload[1 + i * 9], 5); // occurs in payload bytes: 1, 10, 19, 28
 
-		}
+		status.buttonA     = GetNthBit(controller_payload[2 + i * 9], 1);
+		status.buttonB     = GetNthBit(controller_payload[2 + i * 9], 2);
+		status.buttonX     = GetNthBit(controller_payload[2 + i * 9], 3);
+		status.buttonY     = GetNthBit(controller_payload[2 + i * 9], 4);
 
-		status.connected   = GetNthBit(results[1 * port], 5);
+		status.padLeft     = GetNthBit(controller_payload[2 + i * 9], 5);
+		status.padRight    = GetNthBit(controller_payload[2 + i * 9], 6);
+		status.padDown     = GetNthBit(controller_payload[2 + i * 9], 7);
+		status.padUp       = GetNthBit(controller_payload[2 + i * 9], 8);
 
-		status.buttonA     = GetNthBit(results[2 * port], 1);
-		status.buttonB     = GetNthBit(results[2 * port], 2);
-		status.buttonX     = GetNthBit(results[2 * port], 3);
-		status.buttonY     = GetNthBit(results[2 * port], 4);
+		status.buttonStart = GetNthBit(controller_payload[3 + i * 9], 1);
+		status.buttonZ     = GetNthBit(controller_payload[3 + i * 9], 2);
+		status.buttonR     = GetNthBit(controller_payload[3 + i * 9], 3);
+		status.buttonL     = GetNthBit(controller_payload[3 + i * 9], 4);
 
-		status.padLeft     = GetNthBit(results[2 * port], 5);
-		status.padRight    = GetNthBit(results[2 * port], 6);
-		status.padDown     = GetNthBit(results[2 * port], 7);
-		status.padUp       = GetNthBit(results[2 * port], 8);
+		// TODO: memcopy these? memcopy all?
+		// TODO: add back bias correction & controller_analog_bias struct?
 
-		status.buttonL     = GetNthBit(results[3 * port], 4);
-		status.buttonR     = GetNthBit(results[3 * port], 3);
-		status.buttonZ     = GetNthBit(results[3 * port], 2);
-		status.buttonStart = GetNthBit(results[3 * port], 1);
+		status.mainStickHorizontal = controller_payload[4 + i * 9];
+		status.mainStickVertical   = controller_payload[5 + i * 9];
 
-		status.mainStickHorizontal = std::clamp(results[4 * port] - 128 - metadata[m_port].init_primary_x,   -128, 127); // note: ssbm clamps from from -80 to 80. this is essentially the practical limit of the digital inputs you will get out of the GC 
-		status.mainStickVertical   = std::clamp(results[5 * port] - 128 - metadata[m_port].init_primary_y,   -128, 127);
+		status.cStickHorizontal    = controller_payload[6 + i * 9];
+		status.cStickVertical      = controller_payload[7 + i * 9];
 
-		status.cStickHorizontal    = std::clamp(results[6 * port] - 128 - metadata[m_port].init_secondary_x, -128, 127);
-		status.cStickVertical      = std::clamp(results[7 * port] - 128 - metadata[m_port].init_secondary_y, -128, 127);
-
-		status.triggerL            = std::clamp(results[8 * port]       - metadata[m_port].init_trigger_l,    0, 255);
-		status.triggerR            = std::clamp(results[9 * port]       - metadata[m_port].init_trigger_r,    0, 255);
-
-		// however writing does not cause this issue
-		metadata[m_port].connected_on_prev_poll = status.connected;
+		status.triggerL            = controller_payload[8 + i * 9];
+		status.triggerR            = controller_payload[9 + i * 9];
 
 		return status;
-	}
-	
-	void ResetCalibration(int port){
-		//controller calibration will reset on next poll
-		metadata[port].connected_on_prev_poll = false;
 	}
 }
